@@ -6,4 +6,5 @@ jupyter
 streamlit
 scikit-learn
 scikit-image
+scipy
 Pillow

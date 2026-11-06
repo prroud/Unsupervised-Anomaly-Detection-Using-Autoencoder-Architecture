@@ -17,7 +17,7 @@ class AnomalyDetector:
         self.model.eval()
         
         self.transform = transforms.Compose([
-            transforms.Resize((256, 256), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.Resize((256, 256), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
             transforms.ToTensor(),
             transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD)
         ])

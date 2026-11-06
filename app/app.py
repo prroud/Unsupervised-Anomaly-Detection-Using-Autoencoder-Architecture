@@ -5,6 +5,7 @@ from PIL import Image
 import sys
 from pathlib import Path
 import torch
+import json
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from src.inference import AnomalyDetector
@@ -16,19 +17,22 @@ def get_detector():
     return AnomalyDetector(model_path="checkpoints/bottle_autoencoder.pth", device="cuda" if torch.cuda.is_available() else "cpu")
 
 detector = get_detector()
+results_path = Path("results/bottle.json")
+if not results_path.exists():
+    st.error("Evaluation results are missing. Run `python -m src.train` and `python -m src.evaluate` first.")
+    st.stop()
+with results_path.open(encoding="utf-8") as results_file:
+    evaluation = json.load(results_file)
+threshold = float(evaluation["threshold"])
+sigma = float(evaluation["sigma"])
 
 st.title("Anomaly Detection System (FCAE)")
 
 with st.sidebar:
-    st.header("Engineering Controls")
-    st.subheader("Main Parameters")
-    threshold = st.slider("Detection Threshold", min_value=0.01, max_value=1.00, value=0.15, step=0.01)
-    sigma = st.slider("Gaussian Blur (Sigma)", min_value=1.0, max_value=8.0, value=4.0, step=0.5)
+    st.header("Evaluation Parameters")
+    st.metric("Validation threshold", f"{threshold:.4f}")
+    st.metric("Gaussian sigma", f"{sigma:g}")
     alpha = st.slider("Transparency of the overlay (Alpha)", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
-    
-    st.subheader("Advanced Options")
-    use_roi = st.toggle("Mask bottle edges (ROI)", value=False, help="Zeros error values in the region of interest, eliminating false alarms from light refractions.")
-    use_morph = st.toggle("Morphological cleaning", value=False, help="Remove isolated, single pixels incorrectly classified as anomalies.")
 
 uploaded_file = st.file_uploader("Upload photograph of a bottle (e.g., from /data/bottle/test/)...", type=["png", "jpg", "jpeg"])
 
@@ -36,7 +40,7 @@ if uploaded_file is not None:
     image_pil = Image.open(uploaded_file).convert("RGB")
     
     orig_img, blurred_map, binarized_map = detector.predict(
-        image_pil, sigma=sigma, threshold=threshold, use_roi=use_roi, use_morph=use_morph
+        image_pil, sigma=sigma, threshold=threshold, use_roi=False, use_morph=False
     )
     
     col1, col2 = st.columns(2)
@@ -59,10 +63,10 @@ if uploaded_file is not None:
         
     st.divider()
     st.subheader("Error distribution of errors in pixels")
-    st.markdown("The chart shows the density of errors on the image. The red line is your **Threshold** slider. Everything to the right of the line becomes white on the binary mask.")
+    st.markdown("The chart shows the pixel error distribution. Values above the validation-derived threshold become white in the binary mask.")
     
     fig3, ax3 = plt.subplots(figsize=(10, 3))
-    valid_pixels = blurred_map[blurred_map > 0].flatten() if use_roi else blurred_map.flatten()
+    valid_pixels = blurred_map.flatten()
     
     ax3.hist(valid_pixels, bins=100, color='blue', alpha=0.7)
     ax3.axvline(x=threshold, color='red', linestyle='dashed', linewidth=2, label=f'Threshold: {threshold}')
