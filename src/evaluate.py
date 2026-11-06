@@ -126,6 +126,41 @@ def run_evaluation(args):
     if np.unique(pixel_labels).size != 2:
         raise ValueError("Pixel AUROC requires both normal and anomalous test pixels")
     image_scores = test_maps.reshape(len(test_maps), -1).max(axis=1)
+    pixel_predictions = test_maps >= threshold
+    image_records = []
+    border_width = max(1, int(round(IMAGE_SIZE * 0.05)))
+    border = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=bool)
+    border[:border_width] = border[-border_width:] = True
+    border[:, :border_width] = border[:, -border_width:] = True
+    for index, path in enumerate(paths):
+        mask = test_masks[index]
+        defect_area = float(mask.mean())
+        normal_border = border & ~mask
+        image_records.append({
+            "path": path,
+            "defect_type": Path(path).parent.name,
+            "label": int(image_labels[index]),
+            "image_score": float(image_scores[index]),
+            "image_prediction": int(image_scores[index] >= threshold),
+            "defect_area_fraction": defect_area,
+            "pixel_recall": float((pixel_predictions[index] & mask).sum() / mask.sum()) if mask.any() else None,
+            "normal_border_fpr": float((pixel_predictions[index] & normal_border).sum() / normal_border.sum())
+            if normal_border.any() else None,
+        })
+    defect_records = [record for record in image_records if record["label"] == 1]
+    normal_records = [record for record in image_records if record["label"] == 0]
+    area_bands = {
+        "lt_1pct": lambda area: area < 0.01,
+        "1_to_8pct": lambda area: 0.01 <= area < 0.08,
+        "gte_8pct": lambda area: area >= 0.08,
+    }
+    defect_area_summary = {}
+    for band, condition in area_bands.items():
+        records = [record for record in defect_records if condition(record["defect_area_fraction"])]
+        defect_area_summary[band] = {
+            "images": len(records),
+            "mean_pixel_recall": float(np.mean([record["pixel_recall"] for record in records])) if records else None,
+        }
     results = {
         "category": args.category,
         "checkpoint": str(Path(args.checkpoint)),
@@ -133,8 +168,9 @@ def run_evaluation(args):
         "validation_fraction": args.validation_fraction,
         "seed": args.seed,
         "latent_dim": args.latent_dim,
+        "loss": metadata.get("loss", "l1"),
         "best_epoch": metadata["best_epoch"],
-        "best_validation_l1": metadata["best_val_l1"],
+        "best_validation_loss": metadata["best_val_loss"],
         "sigma": args.sigma,
         "threshold_percentile": args.threshold_percentile,
         "threshold": threshold,
@@ -144,6 +180,14 @@ def run_evaluation(args):
         "test_images": len(paths),
         "test_image_predictions": (image_scores >= threshold).astype(int).tolist(),
         "test_image_paths": paths,
+        "failure_analysis": {
+            "normal_image_false_positive_rate": float(np.mean([r["image_prediction"] for r in normal_records]))
+            if normal_records else None,
+            "mean_normal_border_fpr": float(np.nanmean([r["normal_border_fpr"] for r in normal_records]))
+            if normal_records else None,
+            "defect_pixel_recall_by_area": defect_area_summary,
+            "images": image_records,
+        },
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

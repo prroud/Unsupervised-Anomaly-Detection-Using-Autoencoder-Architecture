@@ -16,6 +16,7 @@ from torchvision import transforms
 from src.data.dataset import MVTecDataset
 from src.models.bottle_autoencoder import BottleAutoencoder
 from src.evaluate import BOTTLE_MEAN, BOTTLE_STD, IMAGE_SIZE, split_good_indices
+from src.losses import ReconstructionLoss
 
 
 def main():
@@ -28,6 +29,7 @@ def main():
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--loss", choices=["l1", "l1_ssim", "l1_ssim_perceptual"], default="l1")
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None)
@@ -56,6 +58,7 @@ def main():
     val_loader = DataLoader(Subset(dataset, val_indices), batch_size=args.batch_size, shuffle=False)
 
     model = BottleAutoencoder(latent_dim=args.latent_dim).to(device)
+    criterion = ReconstructionLoss(args.loss, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
     best_val = float("inf")
@@ -69,7 +72,7 @@ def main():
         for images, *_ in train_loader:
             images = images.to(device)
             optimizer.zero_grad(set_to_none=True)
-            loss = torch.nn.functional.l1_loss(model(images), images)
+            loss = criterion(model(images), images)
             loss.backward()
             optimizer.step()
             train_sum += loss.item() * len(images)
@@ -80,11 +83,11 @@ def main():
         with torch.inference_mode():
             for images, *_ in val_loader:
                 images = images.to(device)
-                val_sum += torch.nn.functional.l1_loss(model(images), images).item() * len(images)
+                val_sum += criterion(model(images), images).item() * len(images)
         val_loss = val_sum / len(val_loader.dataset)
         scheduler.step(val_loss)
-        rows.append({"epoch": epoch + 1, "train_l1": train_loss, "val_l1": val_loss})
-        print(f"epoch {epoch + 1}/{args.epochs}: train_l1={train_loss:.6f} val_l1={val_loss:.6f}")
+        rows.append({"epoch": epoch + 1, "train_loss": train_loss, "val_loss": val_loss})
+        print(f"epoch {epoch + 1}/{args.epochs}: train_loss={train_loss:.6f} val_loss={val_loss:.6f}")
         if val_loss < best_val:
             best_val = val_loss
             best_epoch = epoch + 1
@@ -92,7 +95,7 @@ def main():
 
     args.loss_csv.parent.mkdir(parents=True, exist_ok=True)
     with args.loss_csv.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["epoch", "train_l1", "val_l1"])
+        writer = csv.DictWriter(stream, fieldnames=["epoch", "train_loss", "val_loss"])
         writer.writeheader()
         writer.writerows(rows)
     metadata = {
@@ -102,11 +105,12 @@ def main():
         "train_indices": train_indices,
         "validation_indices": val_indices,
         "latent_dim": args.latent_dim,
+        "loss": args.loss,
         "best_epoch": best_epoch,
-        "best_val_l1": best_val,
+        "best_val_loss": best_val,
     }
     args.checkpoint.with_suffix(".meta.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    print(f"Best validation L1: {best_val:.6f}; checkpoint: {args.checkpoint}")
+    print(f"Best validation loss ({args.loss}): {best_val:.6f}; checkpoint: {args.checkpoint}")
 
 
 if __name__ == "__main__":
