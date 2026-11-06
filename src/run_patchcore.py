@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from src.config import DATA_ROOT, RESULTS_DIR
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data"))
+    parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--output", type=Path, default=Path("results/patchcore_bottle.json"))
+    parser.add_argument("--output", type=Path, default=RESULTS_DIR / "patchcore_bottle.json")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-workers", type=int, default=4)
     args = parser.parse_args()

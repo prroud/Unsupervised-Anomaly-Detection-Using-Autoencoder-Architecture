@@ -1,0 +1,11 @@
+"""Shared project paths and input dimensions."""
+
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_ROOT = PROJECT_ROOT / "data"
+CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"
+RESULTS_DIR = PROJECT_ROOT / "results"
+IMAGE_SIZE = 256
+BOTTLE_MEAN = [0.5354132056236267, 0.531684160232544, 0.5479597449302673]
+BOTTLE_STD = [0.3656117916107178, 0.3659615218639374, 0.34921830892562866]

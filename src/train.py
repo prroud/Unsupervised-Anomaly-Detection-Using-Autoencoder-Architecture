@@ -15,16 +15,17 @@ from torchvision import transforms
 
 from src.data.dataset import MVTecDataset
 from src.models.bottle_autoencoder import BottleAutoencoder
-from src.evaluate import BOTTLE_MEAN, BOTTLE_STD, IMAGE_SIZE, split_good_indices
+from src.evaluate import split_good_indices
 from src.losses import ReconstructionLoss
+from src.config import BOTTLE_MEAN, BOTTLE_STD, CHECKPOINT_DIR, DATA_ROOT, IMAGE_SIZE, RESULTS_DIR
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data"))
+    parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/bottle_autoencoder.pth"))
-    parser.add_argument("--loss-csv", type=Path, default=Path("results/train_loss.csv"))
+    parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_DIR / "bottle_autoencoder.pth")
+    parser.add_argument("--loss-csv", type=Path, default=RESULTS_DIR / "train_loss.csv")
     parser.add_argument("--epochs", type=int, default=175)
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -45,8 +46,7 @@ def main():
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
     transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR,
-                          antialias=True),
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD),
     ])

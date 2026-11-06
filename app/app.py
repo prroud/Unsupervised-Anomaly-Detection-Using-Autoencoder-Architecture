@@ -9,15 +9,16 @@ import json
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from src.inference import AnomalyDetector
+from src.config import CHECKPOINT_DIR, RESULTS_DIR
 
 st.set_page_config(page_title="Anomaly Detection", layout="wide")
 
 @st.cache_resource
 def get_detector():
-    return AnomalyDetector(model_path="checkpoints/bottle_autoencoder.pth", device="cuda" if torch.cuda.is_available() else "cpu")
+    return AnomalyDetector(model_path=CHECKPOINT_DIR / "bottle_autoencoder.pth", device="cuda" if torch.cuda.is_available() else "cpu")
 
 detector = get_detector()
-results_path = Path("results/bottle.json")
+results_path = RESULTS_DIR / "bottle.json"
 if not results_path.exists():
     st.error("Evaluation results are missing. Run `python -m src.train` and `python -m src.evaluate` first.")
     st.stop()
@@ -34,7 +35,7 @@ with st.sidebar:
     st.metric("Gaussian sigma", f"{sigma:g}")
     alpha = st.slider("Transparency of the overlay (Alpha)", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
 
-uploaded_file = st.file_uploader("Upload photograph of a bottle (e.g., from /data/bottle/test/)...", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload a bottle image...", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
     image_pil = Image.open(uploaded_file).convert("RGB")

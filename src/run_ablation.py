@@ -8,15 +8,16 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from src.config import DATA_ROOT, RESULTS_DIR
 
 LOSSES = ("l1", "l1_ssim", "l1_ssim_perceptual")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data"))
+    parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--output-dir", type=Path, default=Path("results/ablation"))
+    parser.add_argument("--output-dir", type=Path, default=RESULTS_DIR / "ablation")
     parser.add_argument("--epochs", type=int, default=175)
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=32)

@@ -4,9 +4,7 @@ from torchvision import transforms
 from PIL import Image
 from scipy.ndimage import gaussian_filter, binary_opening
 from src.models.bottle_autoencoder import BottleAutoencoder 
-
-BOTTLE_MEAN = [0.5354132056236267, 0.531684160232544, 0.5479597449302673]
-BOTTLE_STD = [0.3656117916107178, 0.3659615218639374, 0.34921830892562866]
+from src.config import BOTTLE_MEAN, BOTTLE_STD, IMAGE_SIZE
 
 class AnomalyDetector:
     def __init__(self, model_path, device="cpu"):
@@ -17,7 +15,7 @@ class AnomalyDetector:
         self.model.eval()
         
         self.transform = transforms.Compose([
-            transforms.Resize((256, 256), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
+            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
             transforms.ToTensor(),
             transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD)
         ])

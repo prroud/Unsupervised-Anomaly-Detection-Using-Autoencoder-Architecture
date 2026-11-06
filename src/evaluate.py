@@ -13,18 +13,14 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
+from src.config import BOTTLE_MEAN, BOTTLE_STD, CHECKPOINT_DIR, DATA_ROOT, IMAGE_SIZE, RESULTS_DIR
 from src.data.dataset import MVTecDataset
 from src.models.bottle_autoencoder import BottleAutoencoder
-
-BOTTLE_MEAN = [0.5354132056236267, 0.531684160232544, 0.5479597449302673]
-BOTTLE_STD = [0.3656117916107178, 0.3659615218639374, 0.3492183089256287]
-IMAGE_SIZE = 256
 
 
 def build_transform():
     return transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR,
-                          antialias=True),
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD),
     ])
@@ -197,10 +193,10 @@ def run_evaluation(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data"))
+    parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/bottle_autoencoder.pth"))
-    parser.add_argument("--output", type=Path, default=Path("results/bottle.json"))
+    parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_DIR / "bottle_autoencoder.pth")
+    parser.add_argument("--output", type=Path, default=RESULTS_DIR / "bottle.json")
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--sigma", type=float, default=4.0)
     parser.add_argument("--threshold-percentile", type=float, default=99.0)

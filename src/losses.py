@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torchvision.models import VGG16_Weights, vgg16
 
-from src.evaluate import BOTTLE_MEAN, BOTTLE_STD
+from src.config import BOTTLE_MEAN, BOTTLE_STD
 
 
 class ReconstructionLoss:
