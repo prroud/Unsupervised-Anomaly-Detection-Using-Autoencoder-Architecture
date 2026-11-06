@@ -85,7 +85,7 @@ def pro_auc(maps, masks, max_fpr=0.30, steps=200):
     if x[-1] < max_fpr:
         y_at_limit = np.interp(max_fpr, np.asarray(fprs)[order], np.asarray(pros)[order])
         x, y = np.append(x, max_fpr), np.append(y, y_at_limit)
-    return float(np.trapz(y, x) / max_fpr)
+    return float(np.trapezoid(y, x) / max_fpr)
 
 
 def run_evaluation(args):

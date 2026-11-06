@@ -1,0 +1,41 @@
+[
+  {
+    "loss": "l1",
+    "weight_ssim": 0,
+    "weight_perceptual": 0,
+    "sigma": 4.0,
+    "latent_dim": 512,
+    "best_epoch": 173,
+    "best_validation_loss": 0.05174660931030909,
+    "threshold": 0.1870531141757965,
+    "pixel_auroc": 0.881045052185589,
+    "image_auroc": 0.8769841269841269,
+    "pro_auc_max_fpr_0_30": 0.6499099768310683
+  },
+  {
+    "loss": "l1_ssim",
+    "weight_ssim": 0.1,
+    "weight_perceptual": 0,
+    "sigma": 4.0,
+    "latent_dim": 512,
+    "best_epoch": 172,
+    "best_validation_loss": 0.05213857158308938,
+    "threshold": 0.17025183141231537,
+    "pixel_auroc": 0.916079464408268,
+    "image_auroc": 0.9103174603174604,
+    "pro_auc_max_fpr_0_30": 0.7484024481871603
+  },
+  {
+    "loss": "l1_ssim_perceptual",
+    "weight_ssim": 0.1,
+    "weight_perceptual": 0.01,
+    "sigma": 4.0,
+    "latent_dim": 512,
+    "best_epoch": 173,
+    "best_validation_loss": 0.06620124301740102,
+    "threshold": 0.17903031408786774,
+    "pixel_auroc": 0.9025980247159292,
+    "image_auroc": 0.8833333333333334,
+    "pro_auc_max_fpr_0_30": 0.7052721467492516
+  }
+]
