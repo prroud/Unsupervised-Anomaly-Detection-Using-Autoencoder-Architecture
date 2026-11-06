@@ -3,7 +3,7 @@ import numpy as np
 from torchvision import transforms
 from PIL import Image
 from scipy.ndimage import gaussian_filter, binary_opening
-from models.bottle_autoencoder import BottleAutoencoder 
+from src.models.bottle_autoencoder import BottleAutoencoder 
 
 BOTTLE_MEAN = [0.5354132056236267, 0.531684160232544, 0.5479597449302673]
 BOTTLE_STD = [0.3656117916107178, 0.3659615218639374, 0.34921830892562866]
