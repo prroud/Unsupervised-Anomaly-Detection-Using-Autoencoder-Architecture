@@ -115,14 +115,19 @@ def run_evaluation(args):
     model.load_state_dict(state)
 
     val_maps, _, _, _ = predict_maps(model, val_loader, device, args.sigma)
-    threshold = float(np.percentile(val_maps, args.threshold_percentile))
+    # Pixel masks and image decisions use different score distributions and
+    # therefore need independently calibrated thresholds.
+    pixel_threshold = float(np.percentile(val_maps, args.threshold_percentile))
+    val_image_scores = val_maps.reshape(len(val_maps), -1).max(axis=1)
+    image_threshold = float(np.percentile(val_image_scores, args.image_threshold_percentile))
     test_maps, test_masks, image_labels, paths = predict_maps(model, test_loader, device, args.sigma)
 
     pixel_labels, pixel_scores = test_masks.reshape(-1), test_maps.reshape(-1)
     if np.unique(pixel_labels).size != 2:
         raise ValueError("Pixel AUROC requires both normal and anomalous test pixels")
     image_scores = test_maps.reshape(len(test_maps), -1).max(axis=1)
-    pixel_predictions = test_maps >= threshold
+    pixel_predictions = test_maps >= pixel_threshold
+    image_predictions = image_scores >= image_threshold
     image_records = []
     border_width = max(1, int(round(IMAGE_SIZE * 0.05)))
     border = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=bool)
@@ -137,7 +142,7 @@ def run_evaluation(args):
             "defect_type": Path(path).parent.name,
             "label": int(image_labels[index]),
             "image_score": float(image_scores[index]),
-            "image_prediction": int(image_scores[index] >= threshold),
+            "image_prediction": int(image_predictions[index]),
             "defect_area_fraction": defect_area,
             "pixel_recall": float((pixel_predictions[index] & mask).sum() / mask.sum()) if mask.any() else None,
             "normal_border_fpr": float((pixel_predictions[index] & normal_border).sum() / normal_border.sum())
@@ -169,12 +174,15 @@ def run_evaluation(args):
         "best_validation_loss": metadata["best_val_loss"],
         "sigma": args.sigma,
         "threshold_percentile": args.threshold_percentile,
-        "threshold": threshold,
+        "threshold": pixel_threshold,
+        "pixel_threshold": pixel_threshold,
+        "image_threshold_percentile": args.image_threshold_percentile,
+        "image_threshold": image_threshold,
         "pixel_auroc": float(roc_auc_score(pixel_labels, pixel_scores)),
         "image_auroc": float(roc_auc_score(image_labels, image_scores)),
         "pro_auc_max_fpr_0_30": pro_auc(test_maps, test_masks),
         "test_images": len(paths),
-        "test_image_predictions": (image_scores >= threshold).astype(int).tolist(),
+        "test_image_predictions": image_predictions.astype(int).tolist(),
         "test_image_paths": paths,
         "failure_analysis": {
             "normal_image_false_positive_rate": float(np.mean([r["image_prediction"] for r in normal_records]))
@@ -200,6 +208,7 @@ def main():
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--sigma", type=float, default=4.0)
     parser.add_argument("--threshold-percentile", type=float, default=99.0)
+    parser.add_argument("--image-threshold-percentile", type=float, default=99.0)
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=16)
