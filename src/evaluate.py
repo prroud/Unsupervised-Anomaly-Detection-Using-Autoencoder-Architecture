@@ -1,4 +1,4 @@
-"""Leakage-safe evaluation for the bottle autoencoder on MVTec AD."""
+"""Leakage-safe evaluation for a category-specific autoencoder on MVTec AD."""
 
 from __future__ import annotations
 
@@ -13,17 +13,10 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
-from src.config import BOTTLE_MEAN, BOTTLE_STD, CHECKPOINT_DIR, DATA_ROOT, IMAGE_SIZE, RESULTS_DIR
+from src.config import DATA_ROOT, IMAGE_SIZE, checkpoint_path, legacy_normalization, results_path
 from src.data.dataset import MVTecDataset
-from src.models.bottle_autoencoder import BottleAutoencoder
-
-
-def build_transform():
-    return transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD),
-    ])
+from src.data.preprocessing import build_image_transform
+from src.models.autoencoder import ConvolutionalAutoencoder
 
 
 def split_good_indices(dataset, validation_fraction: float, seed: int):
@@ -90,17 +83,29 @@ def pro_auc(maps, masks, max_fpr=0.30, steps=200):
 
 def run_evaluation(args):
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    transform = build_transform()
+    metadata_path = Path(args.checkpoint).with_suffix(".meta.json")
+    if not metadata_path.exists():
+        raise ValueError(f"Missing {metadata_path}; retrain with `python -m src.train` to create a leakage-safe checkpoint.")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    preprocessing = metadata.get("preprocessing", {})
+    normalization = legacy_normalization(args.category)
+    mean = preprocessing.get("mean") or (normalization[0] if normalization else None)
+    std = preprocessing.get("std") or (normalization[1] if normalization else None)
+    if mean is None or std is None:
+        raise ValueError(
+            f"Checkpoint metadata has no normalization for '{args.category}'. "
+            "Retrain this category with the current training pipeline."
+        )
+    image_size = int(preprocessing.get("image_size", IMAGE_SIZE))
+    if image_size != IMAGE_SIZE:
+        raise ValueError(f"Checkpoint image size {image_size} does not match model input size {IMAGE_SIZE}.")
+    transform = build_image_transform(image_size, mean, std)
     mask_transform = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.NEAREST),
         transforms.ToTensor(),
     ])
     train_good = MVTecDataset(args.data_root, args.category, "train", transform)
     _, val_indices = split_good_indices(train_good, args.validation_fraction, args.seed)
-    metadata_path = Path(args.checkpoint).with_suffix(".meta.json")
-    if not metadata_path.exists():
-        raise ValueError(f"Missing {metadata_path}; retrain with `python -m src.train` to create a leakage-safe checkpoint.")
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     if (metadata.get("category") != args.category or metadata.get("seed") != args.seed
             or metadata.get("validation_indices") != val_indices
             or metadata.get("validation_fraction") != args.validation_fraction
@@ -110,7 +115,7 @@ def run_evaluation(args):
     test_data = MVTecDataset(args.data_root, args.category, "test", transform, mask_transform)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
 
-    model = BottleAutoencoder(latent_dim=args.latent_dim).to(device)
+    model = ConvolutionalAutoencoder(latent_dim=args.latent_dim).to(device)
     state = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(state)
 
@@ -203,8 +208,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_DIR / "bottle_autoencoder.pth")
-    parser.add_argument("--output", type=Path, default=RESULTS_DIR / "bottle.json")
+    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--sigma", type=float, default=4.0)
     parser.add_argument("--threshold-percentile", type=float, default=99.0)
@@ -214,6 +219,8 @@ def main():
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--device", default=None)
     args = parser.parse_args()
+    args.checkpoint = args.checkpoint or checkpoint_path(args.category)
+    args.output = args.output or results_path(args.category)
     results = run_evaluation(args)
     for name in ("threshold", "pixel_auroc", "image_auroc", "pro_auc_max_fpr_0_30"):
         print(f"{name}: {results[name]:.6f}")

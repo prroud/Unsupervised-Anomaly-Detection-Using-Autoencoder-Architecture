@@ -6,13 +6,10 @@ import torch
 import torch.nn.functional as F
 from torchvision.models import VGG16_Weights, vgg16
 
-from src.config import BOTTLE_MEAN, BOTTLE_STD
-
-
 class ReconstructionLoss:
     """L1, L1+SSIM, or L1+SSIM+pretrained VGG16 feature loss."""
 
-    def __init__(self, name: str, device: torch.device):
+    def __init__(self, name: str, device: torch.device, mean, std):
         if name not in {"l1", "l1_ssim", "l1_ssim_perceptual"}:
             raise ValueError(f"Unknown loss variant: {name}")
         self.name = name
@@ -21,14 +18,14 @@ class ReconstructionLoss:
         if name == "l1_ssim_perceptual":
             self.perceptual = vgg16(weights=VGG16_Weights.IMAGENET1K_V1).features[:16].to(device).eval()
             self.perceptual.requires_grad_(False)
-            self.mean = torch.tensor(BOTTLE_MEAN, device=device).view(1, 3, 1, 1)
-            self.std = torch.tensor(BOTTLE_STD, device=device).view(1, 3, 1, 1)
+            self.mean = torch.tensor(mean, device=device).view(1, 3, 1, 1)
+            self.std = torch.tensor(std, device=device).view(1, 3, 1, 1)
             self.imagenet_mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
             self.imagenet_std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
 
     @staticmethod
     def ssim_loss(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        # Inputs are bottle-normalized; use fixed normalized range=2 for SSIM constants.
+        # Inputs are category-normalized; use fixed normalized range=2 for SSIM constants.
         mu_x = F.avg_pool2d(prediction, 11, stride=1, padding=5)
         mu_y = F.avg_pool2d(target, 11, stride=1, padding=5)
         var_x = F.avg_pool2d(prediction.square(), 11, stride=1, padding=5) - mu_x.square()

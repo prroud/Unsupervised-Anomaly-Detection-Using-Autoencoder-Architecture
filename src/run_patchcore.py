@@ -12,10 +12,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--output", type=Path, default=RESULTS_DIR / "patchcore_bottle.json")
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-workers", type=int, default=4)
     args = parser.parse_args()
+    args.output = args.output or RESULTS_DIR / f"patchcore_{args.category}.json"
 
     try:
         from anomalib.data import MVTecAD, ValSplitMode

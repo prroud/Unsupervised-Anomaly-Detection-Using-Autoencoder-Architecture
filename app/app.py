@@ -9,25 +9,45 @@ import json
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from src.inference import AnomalyDetector
-from src.config import CHECKPOINT_DIR, RESULTS_DIR
+from src.config import DATA_ROOT, checkpoint_path, results_path
 
 st.set_page_config(page_title="Anomaly Detection", layout="wide")
 
 @st.cache_resource
-def get_detector():
-    return AnomalyDetector(model_path=CHECKPOINT_DIR / "bottle_autoencoder.pth", device="cuda" if torch.cuda.is_available() else "cpu")
+def get_detector(model_path, category):
+    return AnomalyDetector(
+        model_path=model_path,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        category=category,
+    )
 
-detector = get_detector()
-results_path = RESULTS_DIR / "bottle.json"
-if not results_path.exists():
-    st.error("Evaluation results are missing. Run `python -m src.train` and `python -m src.evaluate` first.")
+available_categories = sorted(
+    path.name
+    for path in DATA_ROOT.iterdir()
+    if path.is_dir()
+    and (path / "train" / "good").is_dir()
+    and checkpoint_path(path.name).is_file()
+    and results_path(path.name).is_file()
+) if DATA_ROOT.is_dir() else []
+
+if not available_categories:
+    st.error("No evaluated categories found. Train and evaluate a class first, for example: `python -m src.train --category bottle` and `python -m src.evaluate --category bottle`.")
     st.stop()
-with results_path.open(encoding="utf-8") as results_file:
+
+category = st.sidebar.selectbox("Category", available_categories)
+model_path = checkpoint_path(category)
+category_results_path = results_path(category)
+detector = get_detector(str(model_path), category)
+with category_results_path.open(encoding="utf-8") as results_file:
     evaluation = json.load(results_file)
+if evaluation.get("category") != category:
+    st.error(f"Evaluation report does not match selected category '{category}'. Re-run evaluation for this class.")
+    st.stop()
 threshold = float(evaluation["threshold"])
 sigma = float(evaluation["sigma"])
 
 st.title("Anomaly Detection System (FCAE)")
+st.caption(f"Category: {category}")
 
 with st.sidebar:
     st.header("Evaluation Parameters")
@@ -35,7 +55,7 @@ with st.sidebar:
     st.metric("Gaussian sigma", f"{sigma:g}")
     alpha = st.slider("Transparency of the overlay (Alpha)", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
 
-uploaded_file = st.file_uploader("Upload a bottle image...", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader(f"Upload a {category} image...", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
     image_pil = Image.open(uploaded_file).convert("RGB")

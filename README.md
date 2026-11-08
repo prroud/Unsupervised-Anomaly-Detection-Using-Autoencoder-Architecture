@@ -1,37 +1,44 @@
-# Unsupervised Industrial Anomaly Detection via Spatial Autoencoders
+# Unsupervised Industrial Anomaly Detection
 
-## Objective
-An unsupervised machine learning system designed to detect and segment industrial manufacturing defects by analyzing the reconstruction error of a Convolutional Autoencoder.
+An MVP for training an image reconstruction model on defect-free images and producing anomaly heatmaps for the MVTec AD dataset. The current pipeline supports category-specific runs; the included Streamlit demo lists categories that have both a trained checkpoint and an evaluation report.
 
-## Dataset
-Trained and evaluated on the [MVTec Anomaly Detection (MVTec AD)](https://www.mvtec.com/company/research/datasets/mvtec-ad) dataset. 
-* **Current Focus:** `Bottle` class (rigid structure).
-* **Approach:** The model is trained exclusively on "good" (defect-free) samples. Defect segmentation is performed zero-shot during inference.
+## Method
 
-## Architecture
-* **Model:** Fully Convolutional Autoencoder (FCAE).
-* **Mechanism:** Patch-based image reconstruction (e.g., 64x64 patches) without skip-connections to enforce strict bottleneck compression and prevent the network from learning the identity mapping of defects.
+- Train a convolutional encoder-decoder with a dense latent bottleneck on `train/<category>/good` images only.
+- Resize inputs to 256×256. The current architecture expects this size.
+- Calculate channel-wise normalization statistics from the training portion of `train/good`; save those values in the checkpoint metadata and reuse them for evaluation and inference.
+- Score pixels by the channel-mean absolute reconstruction error. Evaluation calibrates separate pixel and image thresholds from the held-out normal validation subset.
+- Available training losses: L1, L1 + SSIM, and L1 + SSIM + frozen VGG16 feature loss.
 
-## Loss Formulation
-To prevent the blurry reconstructions typical of standard Autoencoders, this project implements a **Hybrid Loss Function**:
-1. **$L_{MSE}$ (Mean Squared Error):** For global color and intensity convergence.
-2. **$L_{SSIM}$ (Structural Similarity Index):** To penalize structural distortions and preserve high-frequency local textures.
-3. **$L_{Perceptual}$ (Feature Matching):** Computes differences in feature maps from early layers of a pre-trained VGG network to enforce perceptually sharp edges.
+## Setup
 
-## Reproduction
-This project uses `uv` for fast Python environment management.
+Download and extract MVTec AD so that the selected category follows the standard directory layout, for example `data/bottle/train/good`, `data/bottle/test`, and `data/bottle/ground_truth`.
 
-```bash
-# 1. Clone the repository
-git clone [https://github.com/YOUR_USERNAME/unsupervised-anomaly-detection.git](https://github.com/YOUR_USERNAME/unsupervised-anomaly-detection.git)
-cd unsupervised-anomaly-detection
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-# 2. Setup the environment with uv (Python 3.12)
-uv venv --python 3.12
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+## Train and evaluate
 
-# 3. Install dependencies
-uv pip install -r requirements.txt
+Run these commands from the repository root. Replace `bottle` with another MVTec category to train a separate model and create category-specific artifacts.
 
-# 4. Run the Streamlit UI
-streamlit run app/streamlit_app.py
+```powershell
+python -m src.train --category bottle
+python -m src.evaluate --category bottle
+```
+
+By default, checkpoints and metadata are saved under `checkpoints/`, while evaluation reports and training curves are saved under `results/`. The checkpoint metadata records the category, split, model dimensions, loss, and preprocessing parameters. Pass `--checkpoint` or `--output` to override the default artifact paths.
+
+## Streamlit demo
+
+```powershell
+streamlit run app/app.py
+```
+
+The category selector shows classes with both a checkpoint and an evaluation report. Upload an image from that category to view its anomaly heatmap and thresholded pixel mask.
+
+## Experiments
+
+See [docs/experiments.md](docs/experiments.md) for the loss ablation, optional PatchCore baseline, and interpretation of evaluation metrics.

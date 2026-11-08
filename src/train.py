@@ -11,21 +11,26 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
 
 from src.data.dataset import MVTecDataset
-from src.models.bottle_autoencoder import BottleAutoencoder
+from src.data.preprocessing import build_image_transform, estimate_normalization
+from src.models.autoencoder import ConvolutionalAutoencoder
 from src.evaluate import split_good_indices
 from src.losses import ReconstructionLoss
-from src.config import BOTTLE_MEAN, BOTTLE_STD, CHECKPOINT_DIR, DATA_ROOT, IMAGE_SIZE, RESULTS_DIR
+from src.config import (
+    DATA_ROOT,
+    IMAGE_SIZE,
+    checkpoint_path,
+    training_curve_path,
+)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--category", default="bottle")
-    parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_DIR / "bottle_autoencoder.pth")
-    parser.add_argument("--loss-csv", type=Path, default=RESULTS_DIR / "train_loss.csv")
+    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--loss-csv", type=Path)
     parser.add_argument("--epochs", type=int, default=175)
     parser.add_argument("--latent-dim", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -35,6 +40,8 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None)
     args = parser.parse_args()
+    args.checkpoint = args.checkpoint or checkpoint_path(args.category)
+    args.loss_csv = args.loss_csv or training_curve_path(args.category)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -45,20 +52,18 @@ def main():
     torch.backends.cudnn.benchmark = False
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
-    transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=BOTTLE_MEAN, std=BOTTLE_STD),
-    ])
+    raw_dataset = MVTecDataset(args.data_root, args.category, "train")
+    train_indices, val_indices = split_good_indices(raw_dataset, args.validation_fraction, args.seed)
+    mean, std = estimate_normalization(Subset(raw_dataset, train_indices), IMAGE_SIZE)
+    transform = build_image_transform(IMAGE_SIZE, mean, std)
     dataset = MVTecDataset(args.data_root, args.category, "train", transform)
-    train_indices, val_indices = split_good_indices(dataset, args.validation_fraction, args.seed)
     generator = torch.Generator().manual_seed(args.seed)
     train_loader = DataLoader(Subset(dataset, train_indices), batch_size=args.batch_size,
                               shuffle=True, generator=generator)
     val_loader = DataLoader(Subset(dataset, val_indices), batch_size=args.batch_size, shuffle=False)
 
-    model = BottleAutoencoder(latent_dim=args.latent_dim).to(device)
-    criterion = ReconstructionLoss(args.loss, device)
+    model = ConvolutionalAutoencoder(latent_dim=args.latent_dim).to(device)
+    criterion = ReconstructionLoss(args.loss, device, mean=mean, std=std)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
     best_val = float("inf")
@@ -108,6 +113,12 @@ def main():
         "loss": args.loss,
         "best_epoch": best_epoch,
         "best_val_loss": best_val,
+        "preprocessing": {
+            "image_size": IMAGE_SIZE,
+            "mean": mean,
+            "std": std,
+            "normalization_source": "resized train/good images",
+        },
     }
     args.checkpoint.with_suffix(".meta.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"Best validation loss ({args.loss}): {best_val:.6f}; checkpoint: {args.checkpoint}")
