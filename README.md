@@ -77,20 +77,47 @@ Launch the demo from the repository root:
 streamlit run app/app.py
 ```
 
-The category selector lists dataset categories that have both a checkpoint and an evaluation report. Upload an image from the selected category to view its anomaly heatmap, binary pixel mask, and pixel-score distribution. This is an interactive demonstration; it does not expose a production service or REST API.
+The category selector lists dataset categories that have both a checkpoint and an evaluation report. Upload an image from the selected category to view its anomaly heatmap, binary pixel mask, and pixel-score distribution. Streamlit is the interactive demo; the separate FastAPI service is described below.
 
-## Current evaluation results
+## FastAPI service
 
-The latest stored report, `results/bottle.json`, records the following test metrics for the L1 model:
+Install the optional API dependencies and start the local service from the repository root:
 
-| Metric | Value |
-| --- | ---: |
-| Pixel AUROC | 0.8882 |
-| Image AUROC | 0.8548 |
-| PRO-AUC (max pixel FPR 0.30) | 0.6760 |
-| Normal-image false-positive rate at the calibrated image threshold | 0.0000 |
+```powershell
+python -m pip install -e ".[api]"
+uvicorn app.api:app --host 127.0.0.1 --port 8000
+```
 
-These values describe the stored run and are not a guarantee of performance on other categories or production data. The validation set contains only normal images; its 99th-percentile thresholds estimate a score tail from a limited sample. Re-run evaluation after changing the model, preprocessing, category, or threshold settings.
+Open `http://127.0.0.1:8000/docs` for the interactive API documentation. `GET /health` lists categories with both a checkpoint and an evaluation report. `POST /predict/{category}` accepts one image as multipart form field `image` and returns an image-level decision, calibrated image and pixel thresholds, a 256×256 continuous anomaly map, and a binary pixel mask. For example:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/predict/bottle" -F "image=@sample.png"
+```
+
+The endpoint uses the matching category checkpoint and thresholds from its evaluation report. Uploads are limited to 10 MiB; unknown categories return 404 and invalid image data returns 422. The response contains nested numeric arrays, so it is intended for demos and integration prototypes rather than high-volume image transport.
+
+### Run the API with Docker
+
+Build and start the CPU service with Docker Compose:
+
+```powershell
+docker compose up --build
+```
+
+Compose mounts `checkpoints/` and `results/` read-only from the host, so train and evaluate a category before starting the service. The API is available at `http://127.0.0.1:8000`, with interactive docs at `/docs`.
+
+## Current multi-category evaluation results
+
+The table below summarizes a shared L1 training configuration across four MVTec AD categories. Each model used seed 42, a 20% held-out split of `train/good`, latent dimension 512, and a 50-epoch training budget. The checkpoint is selected by the lowest validation reconstruction loss; metrics are then calculated on the category's test split. `results/category_comparison_50epochs.csv` contains the full-precision values and run configuration.
+
+| Category | Train images | Test images | Best epoch | Pixel AUROC | Image AUROC | PRO-AUC (max FPR 0.30) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| bottle | 209 | 83 | 48 | 0.8818 | 0.8230 | 0.6776 |
+| cable | 224 | 150 | 50 | 0.9130 | 0.6347 | 0.6445 |
+| grid | 264 | 78 | 8 | 0.6598 | 0.6825 | 0.2863 |
+| wood | 247 | 79 | 37 | 0.8075 | 0.9675 | 0.5973 |
+
+These are results from a limited four-category run with a 50-epoch budget, rather than the 175-epoch default. Performance varies substantially by category: `grid` is a clear weak case, and `cable` has strong pixel AUROC but much lower image AUROC. The table should be treated as an initial cross-category check, not a claim of broad production performance. Thresholds are calibrated from normal validation images only, and the test metrics are descriptive; do not use them to tune the model or thresholds. Re-run evaluation after changing the model, preprocessing, category, or threshold settings.
 
 ## Experiments and result files
 
@@ -116,14 +143,23 @@ The runner writes one checkpoint, metadata file, loss curve, and evaluation JSON
 
 ### PatchCore baseline
 
-An optional PatchCore baseline runner is available in `src/run_patchcore.py`. It has not yet produced a result file in the current workspace. Install its optional dependency and run it with:
+An optional PatchCore baseline runner is available in `src/run_patchcore.py`. The current `bottle` run is stored in `results/patchcore_bottle.json`:
+
+| Metric (Anomalib) | Value |
+| --- | ---: |
+| Image AUROC | 1.0000 |
+| Pixel AUROC | 0.9856 |
+| Image F1 | 1.0000 |
+| Pixel F1 | 0.5865 |
+
+Install the optional dependency and reproduce the run with:
 
 ```powershell
 python -m pip install -e ".[baseline]"
 python -m src.run_patchcore --data-root data --category bottle --seed 42
 ```
 
-The expected output is `results/patchcore_bottle.json`. Anomalib uses its own preprocessing and evaluator, so its results should be reported as a library baseline and may not be numerically identical to this project's metrics.
+The runner uses Anomalib's synthetic validation split and evaluator. Its preprocessing and metric implementation differ from this repository's, so these values are a library baseline and should not be compared numerically as if they came from one shared evaluation pipeline.
 
 ### Result and experiment file map
 
@@ -131,6 +167,8 @@ The expected output is `results/patchcore_bottle.json`. Anomalib uses its own pr
 | --- | --- |
 | `results/bottle.json` | Latest stored `bottle` evaluation report and per-image failure analysis |
 | `results/bottle_train_loss.csv` | Loss curve for the latest category-aware `bottle` training run |
+| `results/category_comparison_50epochs.csv` | Shared-configuration metrics and run settings for bottle, cable, grid, and wood |
+| `results/patchcore_bottle.json` | Anomalib PatchCore baseline metrics for `bottle` |
 | `results/train_loss.csv` | Loss curve from an earlier run using the legacy shared filename |
 | `results/ablation/bottle_loss_ablation.csv` / `.json` | Combined loss-ablation metrics |
 | `results/ablation/bottle_<loss>.json` | Per-objective evaluation metrics and failure analysis |
@@ -155,3 +193,5 @@ The expected output is `results/patchcore_bottle.json`. Anomalib uses its own pr
 | `src/run_ablation.py` | Reproducible loss-ablation orchestration |
 | `src/run_patchcore.py` | Optional Anomalib PatchCore baseline |
 | `app/app.py` | Streamlit image-upload demo |
+| `app/api.py` | FastAPI health and prediction endpoints |
+| `Dockerfile` / `docker-compose.yml` | CPU API image and local artifact mounts |

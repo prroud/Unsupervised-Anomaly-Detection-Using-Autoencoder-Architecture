@@ -19,7 +19,8 @@ def main():
     args.output = args.output or RESULTS_DIR / f"patchcore_{args.category}.json"
 
     try:
-        from anomalib.data import MVTecAD, ValSplitMode
+        from anomalib.data import MVTecAD
+        from anomalib.data.utils.split import ValSplitMode
         from anomalib.engine import Engine
         from anomalib.models import Patchcore
     except ImportError as error:

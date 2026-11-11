@@ -1,0 +1,14 @@
+{
+  "model": "PatchCore (Anomalib)",
+  "category": "bottle",
+  "seed": 42,
+  "validation_split": "synthetic from train/good",
+  "test_metrics": [
+    {
+      "image_AUROC": 1.0,
+      "image_F1Score": 1.0,
+      "pixel_AUROC": 0.985561728477478,
+      "pixel_F1Score": 0.5864537954330444
+    }
+  ]
+}

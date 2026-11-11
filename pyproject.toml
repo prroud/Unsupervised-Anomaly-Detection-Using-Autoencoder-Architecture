@@ -10,6 +10,7 @@ dependencies = []
 
 [project.optional-dependencies]
 baseline = ["anomalib[cpu]"]
+api = ["fastapi", "uvicorn[standard]", "python-multipart"]
 
 [tool.setuptools.packages.find]
 where = ["."]

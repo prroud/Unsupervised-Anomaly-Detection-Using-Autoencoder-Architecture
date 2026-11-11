@@ -1,0 +1,9 @@
+services:
+  anomaly-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./checkpoints:/app/checkpoints:ro
+      - ./results:/app/results:ro
+    restart: unless-stopped
