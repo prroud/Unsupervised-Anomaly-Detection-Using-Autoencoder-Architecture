@@ -119,6 +119,14 @@ The table below summarizes a shared L1 training configuration across four MVTec 
 
 These are results from a limited four-category run with a 50-epoch budget, rather than the 175-epoch default. Performance varies substantially by category: `grid` is a clear weak case, and `cable` has strong pixel AUROC but much lower image AUROC. The table should be treated as an initial cross-category check, not a claim of broad production performance. Thresholds are calibrated from normal validation images only, and the test metrics are descriptive; do not use them to tune the model or thresholds. Re-run evaluation after changing the model, preprocessing, category, or threshold settings.
 
+Generate side-by-side views of the lowest-recall test examples for qualitative diagnosis:
+
+```powershell
+python -m src.diagnose_failures --categories grid cable --count 8
+```
+
+The images are saved under `results/diagnostics/` and are for descriptive failure analysis only. Do not use the test images to select model settings.
+
 ## Experiments and result files
 
 ### Loss ablation
@@ -189,6 +197,7 @@ The runner uses Anomalib's synthetic validation split and evaluator. Its preproc
 | `src/losses.py` | L1, SSIM, and perceptual reconstruction objectives |
 | `src/train.py` | Training, validation checkpoint selection, and metadata output |
 | `src/evaluate.py` | Threshold calibration, test metrics, and failure analysis |
+| `src/diagnose_failures.py` | Side-by-side visualization of low-recall test examples |
 | `src/inference.py` | Checkpoint-backed prediction and anomaly-map postprocessing |
 | `src/run_ablation.py` | Reproducible loss-ablation orchestration |
 | `src/run_patchcore.py` | Optional Anomalib PatchCore baseline |
