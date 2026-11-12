@@ -38,6 +38,14 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
+For a version-locked environment, install with `uv` using the committed `uv.lock`:
+
+```powershell
+uv sync --extra api --extra test
+```
+
+To include the optional PatchCore baseline as well, add `--extra baseline`.
+
 ## Train and evaluate
 
 Train and evaluate the default `bottle` category:
@@ -96,6 +104,13 @@ curl.exe -X POST "http://127.0.0.1:8000/predict/bottle" -F "image=@sample.png"
 
 The endpoint uses the matching category checkpoint and thresholds from its evaluation report. Uploads are limited to 10 MiB; unknown categories return 404 and invalid image data returns 422. The response contains nested numeric arrays, so it is intended for demos and integration prototypes rather than high-volume image transport.
 
+Run the API unit tests with:
+
+```powershell
+uv sync --extra api --extra test
+python -m pytest -q
+```
+
 ### Run the API with Docker
 
 Build and start the CPU service with Docker Compose:
@@ -108,14 +123,14 @@ Compose mounts `checkpoints/` and `results/` read-only from the host, so train a
 
 ## Current multi-category evaluation results
 
-The table below summarizes a shared L1 training configuration across four MVTec AD categories. Each model used seed 42, a 20% held-out split of `train/good`, latent dimension 512, and a 50-epoch training budget. The checkpoint is selected by the lowest validation reconstruction loss; metrics are then calculated on the category's test split. `results/category_comparison_50epochs.csv` contains the full-precision values and run configuration.
+The table below summarizes a shared L1 training configuration across four MVTec AD categories. Each model used seed 42, a 20% held-out split of `train/good`, latent dimension 512, and a 50-epoch training budget. The checkpoint is selected by the lowest validation reconstruction loss; metrics are then calculated on the category's test split. Image AUROC intervals use 1,000 stratified image-level bootstrap samples at 95% confidence; they describe test-sample uncertainty, not training-seed variability. `results/category_comparison_50epochs.csv` contains the full-precision values and run configuration.
 
-| Category | Train images | Test images | Best epoch | Pixel AUROC | Image AUROC | PRO-AUC (max FPR 0.30) |
+| Category | Train images | Test images | Best epoch | Pixel AUROC | Image AUROC (95% CI) | PRO-AUC (max FPR 0.30) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| bottle | 209 | 83 | 48 | 0.8818 | 0.8230 | 0.6776 |
-| cable | 224 | 150 | 50 | 0.9130 | 0.6347 | 0.6445 |
-| grid | 264 | 78 | 8 | 0.6598 | 0.6825 | 0.2863 |
-| wood | 247 | 79 | 37 | 0.8075 | 0.9675 | 0.5973 |
+| bottle | 209 | 83 | 48 | 0.8818 | 0.8230 (0.7285–0.9032) | 0.6776 |
+| cable | 224 | 150 | 50 | 0.9130 | 0.6347 (0.5430–0.7330) | 0.6445 |
+| grid | 264 | 78 | 8 | 0.6598 | 0.6825 (0.5279–0.8254) | 0.2863 |
+| wood | 247 | 79 | 37 | 0.8075 | 0.9675 (0.9263–0.9921) | 0.5973 |
 
 These are results from a limited four-category run with a 50-epoch budget, rather than the 175-epoch default. Performance varies substantially by category: `grid` is a clear weak case, and `cable` has strong pixel AUROC but much lower image AUROC. The table should be treated as an initial cross-category check, not a claim of broad production performance. Thresholds are calibrated from normal validation images only, and the test metrics are descriptive; do not use them to tune the model or thresholds. Re-run evaluation after changing the model, preprocessing, category, or threshold settings.
 
@@ -167,7 +182,35 @@ python -m pip install -e ".[baseline]"
 python -m src.run_patchcore --data-root data --category bottle --seed 42
 ```
 
-The runner uses Anomalib's synthetic validation split and evaluator. Its preprocessing and metric implementation differ from this repository's, so these values are a library baseline and should not be compared numerically as if they came from one shared evaluation pipeline.
+The runner uses Anomalib's synthetic validation split and evaluator. Its preprocessing and metric implementation differ from this repository's, so the values above are Anomalib's library metrics and should not be compared numerically as if they came from one shared evaluation pipeline.
+
+The fitted checkpoint was also re-evaluated with the project's AUROC and PRO-AUC functions and `sigma=4` map smoothing:
+
+| Shared metric implementation | PatchCore `bottle` |
+| --- | ---: |
+| Pixel AUROC | 0.9854 |
+| Image AUROC | 1.0000 |
+| PRO-AUC (max FPR 0.30) | 0.9426 |
+
+This shares the metric code and map smoothing with the autoencoder evaluation; Anomalib still controls PatchCore preprocessing and raw maps, so the comparison is closer but not fully identical. Re-evaluate an existing checkpoint without fitting again using:
+
+```powershell
+python -m src.run_patchcore --data-root data --category bottle --seed 42 --sigma 4 --checkpoint results/patchcore_runs/Patchcore/MVTecAD/bottle/v0/weights/lightning/model.ckpt
+```
+
+The checkpoint was also re-evaluated from its pixel maps using this project's AUROC and PRO-AUC implementation, with the same `sigma=4` smoothing as the autoencoder:
+
+| Shared metric implementation | PatchCore `bottle` |
+| --- | ---: |
+| Pixel AUROC | 0.9854 |
+| Image AUROC | 1.0000 |
+| PRO-AUC (max FPR 0.30) | 0.9426 |
+
+This makes the metric calculations and map smoothing consistent, but Anomalib still supplies PatchCore's preprocessing and anomaly maps. Treat this as a closer, not fully identical, comparison. To recompute these values without fitting the model again, pass the saved Anomalib checkpoint:
+
+```powershell
+python -m src.run_patchcore --data-root data --category bottle --seed 42 --sigma 4 --checkpoint results/patchcore_runs/Patchcore/MVTecAD/bottle/v0/weights/lightning/model.ckpt
+```
 
 ### Result and experiment file map
 

@@ -29,18 +29,7 @@ class InMemoryUpload:
     filename = "sample.png"
 
     def __init__(self, content: bytes):
-        self.content = content
-
-    async def read(self, size: int = -1) -> bytes:
-        return self.content if size < 0 else self.content[:size]
-
-
-def run_immediate(coroutine):
-    try:
-        coroutine.send(None)
-    except StopIteration as completed:
-        return completed.value
-    raise AssertionError("The in-memory API unit call unexpectedly suspended.")
+        self.file = BytesIO(content)
 
 
 def png_bytes() -> bytes:
@@ -72,7 +61,7 @@ def test_unknown_category_returns_404(monkeypatch) -> None:
     upload = InMemoryUpload(png_bytes())
 
     with pytest.raises(HTTPException) as error:
-        run_immediate(api.predict("unknown", upload))
+        api.predict("unknown", upload)
     assert error.value.status_code == 404
 
 
@@ -80,7 +69,7 @@ def test_predict_returns_thresholds_and_maps(monkeypatch) -> None:
     configure_stub(monkeypatch)
     upload = InMemoryUpload(png_bytes())
 
-    response = run_immediate(api.predict("grid", upload))
+    response = api.predict("grid", upload)
 
     assert response.is_anomaly is True
     assert response.image_score == 0.5
@@ -96,5 +85,5 @@ def test_invalid_image_returns_422(monkeypatch) -> None:
     upload = InMemoryUpload(b"not an image")
 
     with pytest.raises(HTTPException) as error:
-        run_immediate(api.predict("grid", upload))
+        api.predict("grid", upload)
     assert error.value.status_code == 422

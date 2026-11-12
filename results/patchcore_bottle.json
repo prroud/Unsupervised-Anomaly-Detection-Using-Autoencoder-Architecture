@@ -10,5 +10,14 @@
       "pixel_AUROC": 0.985561728477478,
       "pixel_F1Score": 0.5864537954330444
     }
-  ]
+  ],
+  "shared_evaluation": {
+    "evaluator": "src.evaluate.pro_auc and scikit-learn AUROC",
+    "sigma": 4.0,
+    "test_images": 83,
+    "pixel_auroc": 0.985397554063455,
+    "image_auroc": 1.0,
+    "pro_auc_max_fpr_0_30": 0.942630735434436,
+    "preprocessing": "Anomalib MVTecAD and PatchCore preprocessing; metrics and Gaussian map smoothing shared with the autoencoder evaluator"
+  }
 }

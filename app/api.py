@@ -77,11 +77,11 @@ def health() -> dict:
 
 
 @app.post("/predict/{category}", response_model=PredictionResponse)
-async def predict(category: str, image: UploadFile = File(...)) -> PredictionResponse:
+def predict(category: str, image: UploadFile = File(...)) -> PredictionResponse:
     if category not in available_categories():
         raise HTTPException(status_code=404, detail=f"No evaluated model is available for category '{category}'.")
 
-    content = await image.read(MAX_UPLOAD_BYTES + 1)
+    content = image.file.read(MAX_UPLOAD_BYTES + 1)
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Image is larger than the 10 MiB upload limit.")
     if not content:

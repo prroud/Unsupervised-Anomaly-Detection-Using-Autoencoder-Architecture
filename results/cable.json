@@ -16,6 +16,13 @@
   "image_threshold": 2.3719446659088135,
   "pixel_auroc": 0.9130276693016873,
   "image_auroc": 0.6347451274362819,
+  "image_auroc_ci95": {
+    "lower": 0.5429675787106446,
+    "upper": 0.7329928785607196,
+    "confidence_level": 0.95,
+    "bootstrap_samples": 1000,
+    "resampling": "stratified by image label"
+  },
   "pro_auc_max_fpr_0_30": 0.6444903761985137,
   "test_images": 150,
   "test_image_predictions": [

@@ -6,12 +6,23 @@ build-backend = "setuptools.build_meta"
 name = "unsupervised-anomaly-detection-using-autoencoder-architecture"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "torch",
+    "torchvision",
+    "numpy",
+    "matplotlib",
+    "jupyter",
+    "streamlit",
+    "scikit-learn",
+    "scikit-image",
+    "scipy",
+    "Pillow",
+]
 
 [project.optional-dependencies]
 baseline = ["anomalib[cpu]"]
 api = ["fastapi", "uvicorn[standard]", "python-multipart"]
-test = ["pytest", "httpx"]
+test = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["."]

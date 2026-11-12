@@ -223,3 +223,4 @@ __marimo__/
 checkpoints/
 results/patchcore_runs/
 results/diagnostics/
+results/patchcore_predict/

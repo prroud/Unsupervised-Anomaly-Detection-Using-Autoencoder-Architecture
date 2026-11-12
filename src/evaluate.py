@@ -81,6 +81,36 @@ def pro_auc(maps, masks, max_fpr=0.30, steps=200):
     return float(np.trapezoid(y, x) / max_fpr)
 
 
+def stratified_image_auroc_ci(labels, scores, seed: int, samples: int = 1000) -> dict:
+    """Bootstrap image-level AUROC by resampling normal and anomalous images separately."""
+    labels = np.asarray(labels).astype(int)
+    scores = np.asarray(scores, dtype=float)
+    normal_indices = np.flatnonzero(labels == 0)
+    anomaly_indices = np.flatnonzero(labels == 1)
+    if not normal_indices.size or not anomaly_indices.size:
+        raise ValueError("Image AUROC confidence intervals require normal and anomalous images.")
+    if samples < 1:
+        raise ValueError("Bootstrap sample count must be positive.")
+
+    rng = np.random.default_rng(seed)
+    aucs = np.empty(samples, dtype=float)
+    for index in range(samples):
+        sampled_normal = rng.choice(normal_indices, size=normal_indices.size, replace=True)
+        sampled_anomaly = rng.choice(anomaly_indices, size=anomaly_indices.size, replace=True)
+        selected = np.concatenate((sampled_normal, sampled_anomaly))
+        sampled_labels = np.concatenate((np.zeros(normal_indices.size), np.ones(anomaly_indices.size)))
+        aucs[index] = roc_auc_score(sampled_labels, scores[selected])
+
+    lower, upper = np.percentile(aucs, [2.5, 97.5])
+    return {
+        "lower": float(lower),
+        "upper": float(upper),
+        "confidence_level": 0.95,
+        "bootstrap_samples": samples,
+        "resampling": "stratified by image label",
+    }
+
+
 def run_evaluation(args):
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     metadata_path = Path(args.checkpoint).with_suffix(".meta.json")
@@ -185,6 +215,7 @@ def run_evaluation(args):
         "image_threshold": image_threshold,
         "pixel_auroc": float(roc_auc_score(pixel_labels, pixel_scores)),
         "image_auroc": float(roc_auc_score(image_labels, image_scores)),
+        "image_auroc_ci95": stratified_image_auroc_ci(image_labels, image_scores, seed=args.seed),
         "pro_auc_max_fpr_0_30": pro_auc(test_maps, test_masks),
         "test_images": len(paths),
         "test_image_predictions": image_predictions.astype(int).tolist(),
