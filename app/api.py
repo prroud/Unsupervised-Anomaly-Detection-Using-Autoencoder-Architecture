@@ -120,6 +120,6 @@ async def predict(category: str, image: UploadFile = File(...)) -> PredictionRes
         image_threshold=image_threshold,
         pixel_threshold=pixel_threshold,
         image_size=[int(anomaly_map.shape[0]), int(anomaly_map.shape[1])],
-        anomaly_map=np.asarray(anomaly_map, dtype=np.float32).round(6).tolist(),
+        anomaly_map=np.round(np.asarray(anomaly_map, dtype=np.float64), 6).tolist(),
         binary_mask=np.asarray(binary_mask, dtype=np.uint8).tolist(),
     )
