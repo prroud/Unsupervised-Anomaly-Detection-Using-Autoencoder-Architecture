@@ -11,6 +11,7 @@ dependencies = []
 [project.optional-dependencies]
 baseline = ["anomalib[cpu]"]
 api = ["fastapi", "uvicorn[standard]", "python-multipart"]
+test = ["pytest", "httpx"]
 
 [tool.setuptools.packages.find]
 where = ["."]

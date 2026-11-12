@@ -222,3 +222,4 @@ __marimo__/
 /data/
 checkpoints/
 results/patchcore_runs/
+results/diagnostics/
